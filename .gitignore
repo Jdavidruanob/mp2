@@ -13,6 +13,7 @@ mpi_filterer
 
 # Salidas generadas por los filtros (no se versionan, se regeneran)
 output/
+output_docker/
 
 # Valgrind
 vgcore.*

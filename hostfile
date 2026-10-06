@@ -1,0 +1,10 @@
+# Hostfile de OpenMPI para el clúster de docker-compose.yml. Los nombres
+# son los de los servicios (resueltos por el DNS interno de Docker).
+# slots=1: fuerza exactamente 1 rank por contenedor, para que -np 4 use
+# realmente los 4 nodos (maestro + 3 trabajadores) en vez de llenar los
+# slots de un solo host antes de pasar al siguiente (ver
+# docs/reportes/FASE_4.md, sección de problemas encontrados).
+maestro slots=1
+trabajador1 slots=1
+trabajador2 slots=1
+trabajador3 slots=1

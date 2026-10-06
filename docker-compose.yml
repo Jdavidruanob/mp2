@@ -1,0 +1,45 @@
+services:
+  maestro:
+    build: .
+    hostname: maestro
+    networks:
+      - red_mpi
+    volumes:
+      - .:/proyecto:z
+    tty: true
+
+  trabajador1:
+    build: .
+    hostname: trabajador1
+    networks:
+      - red_mpi
+    volumes:
+      - .:/proyecto:z
+    tty: true
+
+  trabajador2:
+    build: .
+    hostname: trabajador2
+    networks:
+      - red_mpi
+    volumes:
+      - .:/proyecto:z
+    tty: true
+
+  trabajador3:
+    build: .
+    hostname: trabajador3
+    networks:
+      - red_mpi
+    volumes:
+      - .:/proyecto:z
+    tty: true
+
+networks:
+  # Red interna de Docker: los 4 contenedores se resuelven entre sí por
+  # nombre de servicio (DNS embebido de Docker), sin acceso a/desde fuera
+  # del host. "internal: true" no afecta la construcción de la imagen
+  # (apt-get corre en la red de build de Docker, no en esta).
+  red_mpi:
+    driver: bridge
+    internal: true
