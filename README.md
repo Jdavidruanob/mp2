@@ -4,21 +4,25 @@ Micro-Proyecto 2 del curso Programación Paralela (300CIP013), Pontificia
 Universidad Javeriana Cali, 2026-II. Cuatro diseños incrementales de un
 filtrador de imágenes PGM/PPM: secuencial, memoria compartida (pthreads y
 OpenMP) y memoria distribuida (MPI + Docker). La consigna completa está en
-`docs/consigna.pdf`; las reglas de implementación y la arquitectura
-propuesta, en `CLAUDE.md`.
+`docs/consigna.pdf`.
 
 ## Ramas
 
-Cada diseño vive en su propia rama, cada una parte de la anterior.
+`main` es la rama final (y la rama por defecto del repositorio): tiene
+todo el trabajo integrado — los 5 ejecutables, la infraestructura Docker,
+los scripts de benchmark y los 7 reportes de fase. Las ramas `diseno-1` a
+`diseno-4` se conservan **tal como quedaron al cierre de cada fase**
+(la consigna exige una rama por diseño); no se vuelven a tocar después de
+fusionarse hacia adelante.
 
 | Rama | Contiene | Ejecutable(s) nuevo(s) |
 |---|---|---|
-| `main` | Código base del profesor (con errores conocidos), consigna, imágenes de prueba | — |
+| `main` | **Todo integrado** (resultado final) | `processor`, `filterer`, `th_filterer`, `omp_filterer`, `mpi_filterer` |
 | `diseno-1` | Lectura/escritura PGM/PPM orientada a objetos | `processor` |
 | `diseno-2` | Filtros (blur, laplace, sharpen, sobel) secuenciales + medición de tiempos | `filterer` |
 | `diseno-3` | Paralelismo de memoria compartida: 4 cuadrantes (pthreads) y filas (OpenMP) | `th_filterer`, `omp_filterer` |
 | `diseno-4` | Paralelismo de memoria distribuida (MPI) + clúster Docker de 4 nodos | `mpi_filterer` |
-| `resultados` | Benchmark de las 4 versiones, gráficas y reporte final de resultados | — (scripts/) |
+| `resultados` | Benchmark de las 4 versiones, gráficas y reportes de resultados (fusionada en `main`) | — (scripts/) |
 
 Cada reporte de fase (`docs/reportes/FASE_<n>.md`) documenta las
 decisiones de diseño, los errores encontrados y las pruebas de esa rama en
@@ -139,17 +143,21 @@ Todas las versiones deben producir **salidas idénticas** a `filterer`
 reportes de fase correspondientes (Fase 3: pthreads/OpenMP; Fase 4: MPI,
 local y entre contenedores).
 
-## Resultados y gráficas (rama `resultados`)
+## Resultados y gráficas
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install matplotlib pandas numpy
 
-scripts/benchmark.sh              # corre las 4 versiones, 5 repeticiones, genera results/tiempos.csv
-.venv/bin/python scripts/graficar.py   # genera results/graficas/*.png y results/resumen*.csv
+scripts/benchmark.sh                     # secuencial/pthreads/OpenMP/MPI local, 5 repeticiones -> results/tiempos.csv
+docker compose exec maestro /proyecto/scripts/benchmark_mpi_docker.sh   # MPI dentro del clúster Docker -> results/tiempos_mpi_docker.csv
+
+.venv/bin/python scripts/graficar.py        # gráficas 01-04 y results/resumen*.csv
+.venv/bin/python scripts/graficar_fase6.py  # gráficas 05-07 (tamaño, Amdahl) y tablas adicionales
 ```
-Tablas de tiempos, speedup/eficiencia y especificaciones de la máquina de
-prueba en `docs/reportes/FASE_5.md`.
+Tablas de tiempos, speedup/eficiencia, Ley de Amdahl (kernel y programa
+completo) y especificaciones de la máquina de prueba en
+`docs/reportes/FASE_5.md` y `docs/reportes/FASE_6.md`.
 
 ## Imágenes de prueba (`images/`)
 
@@ -158,11 +166,12 @@ lena (512x512 pgm, 128x128 ppm), fruit (900x450), puj (1920x600), sulfur
 Asignación por diseño: diseño 2 → lena/fruit/puj; diseños 3 y 4 →
 damma/sulfur.
 
-## Reportes
+## Reportes (`docs/reportes/`)
 
-- [`docs/reportes/FASE_0.md`](docs/reportes/FASE_0.md) — verificación del entorno
-- [`docs/reportes/FASE_1.md`](docs/reportes/FASE_1.md) — diseño 1, errores del código original
-- [`docs/reportes/FASE_2.md`](docs/reportes/FASE_2.md) — diseño 2, filtros y kernels
-- [`docs/reportes/FASE_3.md`](docs/reportes/FASE_3.md) — diseño 3, pthreads/OpenMP
-- [`docs/reportes/FASE_4.md`](docs/reportes/FASE_4.md) — diseño 4, MPI + Docker
-- [`docs/reportes/FASE_5.md`](docs/reportes/FASE_5.md) — resultados, benchmark y gráficas
+- [`FASE_0.md`](docs/reportes/FASE_0.md) — verificación del entorno
+- [`FASE_1.md`](docs/reportes/FASE_1.md) — diseño 1, errores del código original
+- [`FASE_2.md`](docs/reportes/FASE_2.md) — diseño 2, filtros y kernels
+- [`FASE_3.md`](docs/reportes/FASE_3.md) — diseño 3, pthreads/OpenMP
+- [`FASE_4.md`](docs/reportes/FASE_4.md) — diseño 4, MPI + Docker
+- [`FASE_5.md`](docs/reportes/FASE_5.md) — benchmark inicial, gráficas y especificaciones de la máquina
+- [`FASE_6.md`](docs/reportes/FASE_6.md) — investigación de la anomalía de escritura, MPI en Docker, impacto del tamaño de imagen, Ley de Amdahl
