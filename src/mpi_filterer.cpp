@@ -8,6 +8,12 @@
 // comunicación, real y CPU).
 //
 // Uso: mpirun -np N ./mpi_filterer entrada salida
+//
+// Fase 6: además de filtrado y comunicación (por cada rank), el rank 0
+// también mide e imprime lectura, escritura y total (real y CPU), igual
+// que filterer/th_filterer/omp_filterer -- permite comparar el peso de la
+// E/S también en la versión MPI, y correr el mismo tipo de benchmark
+// dentro del clúster Docker (ver docs/reportes/FASE_6.md).
 #include <mpi.h>
 
 #include <cstdio>
@@ -67,9 +73,15 @@ int main(int argc, char *argv[]) {
     int canales = 0;
     int valorMax = 0;
     int errorLectura = 0;
+    double lecturaReal = 0.0;
+    double lecturaCPU = 0.0;
 
     if (rank == 0) {
+        Temporizador tLectura;
+        tLectura.iniciar();
         entradaCompleta = ImagenIO::leer(rutaEntrada);
+        lecturaReal = tLectura.segundosReales();
+        lecturaCPU = tLectura.segundosCPU();
         if (entradaCompleta == nullptr) {
             errorLectura = 1;
         } else {
@@ -197,25 +209,48 @@ int main(int argc, char *argv[]) {
     comunicacionReal += tRecoleccion.segundosReales();
     comunicacionCPU += tRecoleccion.segundosCPU();
 
-    // --- Cada rank imprime su propia línea de tiempos ---
-    if (rank == 0) {
-        std::printf("rank,size,entrada,ancho,alto,filas_propias,filtrado_real_s,filtrado_cpu_s,comunicacion_real_s,comunicacion_cpu_s\n");
-    }
-    MPI_Barrier(MPI_COMM_WORLD); // encabezado antes que las filas de datos
-    std::printf("%d,%d,%s,%d,%d,%d,%.6f,%.6f,%.6f,%.6f\n",
-                rank, size, rutaEntrada, ancho, alto, filas,
-                filtradoReal, filtradoCPU, comunicacionReal, comunicacionCPU);
-    std::fflush(stdout);
-
-    // --- Escritura (solo rank 0) ---
+    // --- Escritura (solo rank 0): las 3 salidas, tiempo sumado entre ellas
+    // (igual criterio que filterer/th_filterer/omp_filterer en
+    // EjecucionCLI.cpp: se aplican 3 filtros, cada uno con su propio
+    // archivo de salida) ---
     bool ok = true;
+    double escrituraReal = 0.0;
+    double escrituraCPU = 0.0;
     if (rank == 0) {
         for (int i = 0; i < 3; i++) {
             char rutaGenerada[1024];
             construirNombreSalida(rutaSalida, nombresFiltros[i], rutaGenerada, sizeof(rutaGenerada));
-            ok = ImagenIO::escribir(*salidasFinales[i], rutaGenerada) && ok;
+            Temporizador tEscritura;
+            tEscritura.iniciar();
+            bool okUna = ImagenIO::escribir(*salidasFinales[i], rutaGenerada);
+            escrituraReal += tEscritura.segundosReales();
+            escrituraCPU += tEscritura.segundosCPU();
+            ok = okUna && ok;
         }
     }
+
+    // --- Cada rank imprime su propia línea de tiempos. Solo el rank 0
+    // mide lectura/escritura/total (es el único que lee y escribe
+    // archivos); en el resto esas columnas quedan vacías. ---
+    if (rank == 0) {
+        std::printf("rank,size,entrada,ancho,alto,filas_propias,lectura_real_s,lectura_cpu_s,filtrado_real_s,filtrado_cpu_s,comunicacion_real_s,comunicacion_cpu_s,escritura_real_s,escritura_cpu_s,total_real_s,total_cpu_s\n");
+    }
+    MPI_Barrier(MPI_COMM_WORLD); // encabezado antes que las filas de datos
+
+    if (rank == 0) {
+        double totalReal = lecturaReal + filtradoReal + comunicacionReal + escrituraReal;
+        double totalCPU = lecturaCPU + filtradoCPU + comunicacionCPU + escrituraCPU;
+        std::printf("%d,%d,%s,%d,%d,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n",
+                    rank, size, rutaEntrada, ancho, alto, filas,
+                    lecturaReal, lecturaCPU, filtradoReal, filtradoCPU,
+                    comunicacionReal, comunicacionCPU, escrituraReal, escrituraCPU,
+                    totalReal, totalCPU);
+    } else {
+        std::printf("%d,%d,%s,%d,%d,%d,,,%.6f,%.6f,%.6f,%.6f,,,,\n",
+                    rank, size, rutaEntrada, ancho, alto, filas,
+                    filtradoReal, filtradoCPU, comunicacionReal, comunicacionCPU);
+    }
+    std::fflush(stdout);
 
     delete entradaLocal;
     for (int i = 0; i < 3; i++) {
