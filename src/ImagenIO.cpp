@@ -113,20 +113,39 @@ bool ImagenIO::escribir(const Imagen &imagen, const char *ruta) {
                   imagen.numeroMagico(), imagen.getAncho(), imagen.getAlto(), imagen.getValorMax());
 
     const int *pixeles = imagen.getPixeles();
-    int cantidad = imagen.getCantidadValores();
+    int alto = imagen.getAlto();
     int valoresPorFila = imagen.getAncho() * imagen.getCanales();
-    for (int i = 0; i < cantidad; i++) {
-        std::fprintf(archivo, "%d", pixeles[i]);
-        // Un salto de línea al final de cada fila de la imagen y un
-        // espacio entre valores dentro de la misma fila, para que el
-        // archivo de salida sea legible y fácil de inspeccionar a mano.
-        if ((i + 1) % valoresPorFila == 0) {
-            std::fputc('\n', archivo);
-        } else {
-            std::fputc(' ', archivo);
+
+    // Se arma el texto de cada fila en un arreglo dinámico y se escribe
+    // con un único fwrite() por fila, en vez de un fprintf()+fputc() por
+    // cada valor de píxel. No es solo un detalle de estilo: cada llamada
+    // a una función de <cstdio> toma un lock interno del FILE* para ser
+    // segura entre hilos, y en glibc, en cuanto el proceso crea al menos
+    // un hilo con pthread_create() (th_filterer, omp_filterer) ese lock
+    // queda activado para el resto del proceso aunque el hilo ya haya
+    // terminado y se haya unido con pthread_join(). Eso hacía que esta
+    // función, llamada DESPUÉS del filtrado paralelo, fuera ~25-30% más
+    // lenta en th_filterer/omp_filterer que en filterer con el código
+    // anterior (un fprintf/fputc por valor: cientos de miles a millones
+    // de llamadas). Escribir fila por fila baja esas llamadas de
+    // "cantidad de valores" a "alto", y el costo del lock se vuelve
+    // despreciable para todas las versiones. Investigado y documentado
+    // en docs/reportes/FASE_6.md (incluye un microbenchmark aislado que
+    // confirma la causa).
+    const int DIGITOS_MAX = 12; // un int cabe en 11 dígitos + signo; 12 por margen
+    char *buffer = new char[static_cast<size_t>(valoresPorFila) * DIGITOS_MAX + 2];
+
+    for (int fila = 0; fila < alto; fila++) {
+        int pos = 0;
+        const int *filaPixeles = pixeles + static_cast<size_t>(fila) * valoresPorFila;
+        for (int col = 0; col < valoresPorFila; col++) {
+            pos += std::snprintf(buffer + pos, DIGITOS_MAX, "%d", filaPixeles[col]);
+            buffer[pos++] = (col + 1 == valoresPorFila) ? '\n' : ' ';
         }
+        std::fwrite(buffer, 1, static_cast<size_t>(pos), archivo);
     }
 
+    delete[] buffer;
     std::fclose(archivo);
     return true;
 }
