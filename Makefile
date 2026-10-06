@@ -1,6 +1,9 @@
 CXX = g++
 MPICXX = mpic++
-CXXFLAGS = -Wall -Wextra -std=c++17 -I$(INC_DIR)
+# OPT: vacío por defecto (sin optimizar, útil para depurar). Para medir
+# tiempos reales (scripts/benchmark.sh) se compila con "make OPT=-O2 ...".
+OPT =
+CXXFLAGS = -Wall -Wextra -std=c++17 $(OPT) -I$(INC_DIR)
 PTHREAD_FLAGS = -pthread
 OMP_FLAGS = -fopenmp
 # OMPI_SKIP_MPICXX: evita que mpi.h arrastre los bindings de C++ de

@@ -19,6 +19,9 @@ output_docker/
 vgcore.*
 *.vgdump
 
+# Entorno virtual de Python para scripts/graficar.py (results/graficas/)
+.venv/
+
 # Editores / SO
 *.swp
 *.swo
