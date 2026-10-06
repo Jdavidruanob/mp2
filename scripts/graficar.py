@@ -80,16 +80,21 @@ def agregar_por_ejecucion(df):
     agg_no_mpi["comunicacion_cpu_s"] = np.nan
 
     mpi_df = df[es_mpi]
+    # Desde la Fase 6, mpi_filterer también mide lectura/escritura/total,
+    # pero SOLO el rank 0 las reporta (los demás ranks no leen ni escriben
+    # archivo); al venir NaN en el resto, max() con skipna (por defecto en
+    # pandas) devuelve directamente el valor del rank 0 sin necesidad de
+    # filtrar por rank explícitamente.
     agg_mpi = mpi_df.groupby(grp).agg(
         filtrado_real_s=("filtrado_real_s", "max"),
         filtrado_cpu_s=("filtrado_cpu_s", "max"),
         comunicacion_real_s=("comunicacion_real_s", "max"),
         comunicacion_cpu_s=("comunicacion_cpu_s", "max"),
+        lectura_real_s=("lectura_real_s", "max"),
+        lectura_cpu_s=("lectura_cpu_s", "max"),
+        escritura_real_s=("escritura_real_s", "max"),
+        escritura_cpu_s=("escritura_cpu_s", "max"),
     ).reset_index()
-    agg_mpi["lectura_real_s"] = np.nan
-    agg_mpi["lectura_cpu_s"] = np.nan
-    agg_mpi["escritura_real_s"] = np.nan
-    agg_mpi["escritura_cpu_s"] = np.nan
 
     ejecuciones = pd.concat([agg_no_mpi, agg_mpi], ignore_index=True)
     return ejecuciones
