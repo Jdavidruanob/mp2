@@ -88,20 +88,38 @@ de 1 fila para MPI, etc.).
 
 Máquina: Fedora Linux (ver `uname`), shell bash, usuario `jdavidruanob`.
 
+### Estado final (tras instalar los paquetes faltantes)
+
 | Herramienta | Estado | Versión / detalle |
 |---|---|---|
 | `git` | ✅ instalado | 2.55.0 |
 | `make` | ✅ instalado | GNU Make 4.4.1 |
 | `gcc` (C) | ✅ instalado | 15.3.1 (Red Hat 15.3.1-1) |
-| `g++` (C++) | ❌ **falta** | no encontrado (`gcc-c++` no está instalado) |
-| OpenMP (`-fopenmp`) | ⏳ pendiente | no se pudo probar porque depende de `g++`; en Fedora `libgomp` viene con el paquete `gcc`/`gcc-c++`, así que debería quedar disponible apenas se instale `gcc-c++`, sin paso adicional |
-| `valgrind` | ❌ **falta** | no instalado; paquete `valgrind` disponible en repos (1:3.27.1-1.fc43) |
+| `g++` (C++) | ✅ instalado | 15.3.1 (Red Hat 15.3.1-1) |
+| OpenMP (`-fopenmp`) | ✅ **probado** | compilado y ejecutado un "hola mundo" con `#pragma omp parallel` (`-Wall -Wextra -fopenmp`), 4 hilos (`OMP_NUM_THREADS=4`), salida correcta con los 4 hilos reportándose |
+| `valgrind` | ✅ instalado | 3.27.1 |
 | ImageMagick (`magick`) | ✅ instalado | 7.1.2-31 Q16-HDRI |
 | `docker` | ✅ instalado | 29.6.2, build 1.fc43 |
 | `docker compose` (plugin v2) | ✅ instalado | 5.5.1 |
-| Servicio `docker` | ❌ **inactivo** | `systemctl is-active docker` → `inactive` |
-| Grupo `docker` | ✅ ya pertenece | `id` confirma `groups=...,969(docker)` — no hace falta `usermod` |
-| MPI (`mpic++` / `mpirun`) | ❌ **falta** | no instalado; paquetes `openmpi` y `openmpi-devel` disponibles (5.0.8-6.fc43). En Fedora el toolchain de OpenMPI no queda en el `PATH` por defecto: requiere `environment-modules` (paquete disponible, 5.6.2-1.fc43) y luego `module load mpi/openmpi-x86_64` (o similar) para exponer `mpic++`/`mpirun` |
+| Servicio `docker` | ✅ activo | `systemctl is-active docker` → `active` |
+| Grupo `docker` | ✅ ya pertenece | `id` confirma `groups=...,969(docker)` — no hizo falta `usermod` |
+| MPI (`mpic++` / `mpirun`) | ✅ instalado | Open MPI 5.0.8, binarios en `/usr/lib64/openmpi/bin/`. No quedan en el `PATH` por defecto: hay que cargar el módulo (ver nota abajo) |
+
+### Nota sobre MPI y `environment-modules`
+
+En Fedora, `mpic++` y `mpirun` de OpenMPI no se agregan al `PATH` automáticamente.
+Para usarlos en una sesión de shell:
+
+```bash
+source /etc/profile.d/modules.sh   # solo si el shell no es de login y `module` no existe aún
+module load mpi/openmpi-x86_64
+```
+
+Se verificó así: `which mpic++ mpirun` → `/usr/lib64/openmpi/bin/{mpic++,mpirun}`,
+`mpirun --version` → `Open MPI 5.0.8`. Esto habrá que tenerlo en cuenta al escribir
+el `Makefile` del diseño 4 (o documentarlo en el reporte de esa fase) porque
+cualquier terminal nueva necesita cargar el módulo antes de compilar/ejecutar
+`mpi_filterer`.
 
 ### Comandos `dnf` pendientes (ejecutar manualmente, con `sudo`)
 
@@ -155,10 +173,9 @@ ligeramente).
 
 ## 5. Pendientes / dudas
 
-- Instalar `g++`, `valgrind`, `openmpi`+`environment-modules`, y activar el
-  servicio `docker` (comandos arriba, a ejecutar por el usuario).
-- Una vez instalado `g++`, probar OpenMP con un "hola mundo" (`-fopenmp`) para
-  confirmar que `libgomp` quedó disponible antes de avanzar al diseño 3.
+- Entorno 100% listo: `g++`, `valgrind`, OpenMP (probado), Docker (activo) y
+  MPI (instalado, requiere `module load mpi/openmpi-x86_64` por sesión) ya
+  están disponibles.
 - Pendiente de la Fase 1: auditar línea por línea `src/processor.cpp` y
   `src/filterer.cpp` y documentar cada error conocido para el informe.
 - No se ha creado todavía la estructura de carpetas/Makefile del proyecto
