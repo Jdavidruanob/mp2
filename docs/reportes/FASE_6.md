@@ -259,6 +259,19 @@ de speedup de filtrado vs. speedup total por versión, con la línea
 
 ### (c) Fracción secuencial medida y speedup máximo teórico (Ley de Amdahl)
 
+**Dos análisis distintos.** El primero (c.1) mira *solo* el kernel de
+filtrado en aislamiento; el segundo (c.2) mira el **programa completo**
+(lectura + filtrado + escritura [+ comunicación en MPI]), que es el que
+importa para responder "¿qué tanto mejora realmente correr esto en
+paralelo?". **El speedup máximo de 35x-39x de la tabla (c.1) aplica
+únicamente al kernel de filtrado aislado, no al programa**: en cuanto se
+cuenta la E/S (que esta implementación no paraleliza), el límite real baja
+a ~1.50x (tabla c.2). Corrección sobre la versión original de este reporte,
+que solo incluía (c.1) y podía leerse como si ese límite aplicara al
+programa completo.
+
+#### (c.1) Solo el kernel de filtrado
+
 Se despeja la fracción no paralelizable `f` de la fórmula de Amdahl,
 `speedup = 1 / (f + (1-f)/n)`, usando el **speedup del filtrado** medido
 con el mayor paralelismo probado de cada versión (`n_usado`):
@@ -266,12 +279,58 @@ con el mayor paralelismo probado de cada versión (`n_usado`):
 límite de Amdahl cuando `n -> infinito`, es decir `1/f`. Tabla completa en
 `results/resumen_amdahl.csv`.
 
-| versión | n usado | speedup medido | f (fracción secuencial) | speedup máximo teórico (n→∞) |
+| versión | n usado | speedup medido (filtrado) | f (fracción secuencial del filtrado) | speedup máximo teórico del FILTRADO (n→∞) |
 |---|---:|---:|---:|---:|
 | pthreads | 4 | 3.69 | 0.0281 | 35.58 |
 | openmp | 12 | 6.05 | 0.0893 | 11.20 |
 | mpi (local) | 4 | 3.72 | 0.0253 | 39.51 |
 | mpi (docker) | 4 | 3.60 | 0.0368 | 27.15 |
+
+#### (c.2) Programa completo (lectura + filtrado + escritura [+ comunicación])
+
+Aquí `p` es la fracción **paralelizable del programa secuencial**, medida
+directamente (no despejada): `p = filtrado_secuencial / total_secuencial`
+(promedio damma+sulfur, PGM+PPM) = **0.3315** (el filtrado es ~1/3 del
+tiempo total; el resto —lectura y escritura de texto plano— es la parte
+que esta implementación no paraleliza). El límite de Amdahl para el
+programa completo, `n -> infinito`, es:
+
+```
+speedup_máximo_programa = 1 / (1 - p) = 1 / (1 - 0.3315) = 1.496x
+```
+
+Es decir: **por más hilos, núcleos o nodos que se agreguen, este programa
+nunca va a ir más de ~1.5x más rápido de punta a punta**, porque ~67% del
+tiempo (lectura + escritura de texto plano) sigue siendo secuencial sin
+importar cuánto se paralelice el filtrado — consistente con lo ya
+señalado en `docs/reportes/FASE_2.md` sobre el peso de la E/S.
+
+El speedup total **predicho** por Amdahl a cada `n` usa el speedup de
+filtrado **realmente medido** a ese `n` (no un `n` ideal) como estimador
+de qué tan rápida queda la parte paralela:
+`speedup_total_predicho = 1 / ((1-p) + p / speedup_filtrado_medido)`.
+Tabla completa en `results/resumen_amdahl_programa.csv`; gráfica en
+`results/graficas/07_amdahl_predicho_vs_medido.png`.
+
+| versión | speedup filtrado medido | speedup total predicho (Amdahl) | speedup total medido |
+|---|---:|---:|---:|
+| pthreads-4 | 3.69 | 1.32 | 1.32 |
+| openmp-2 | 1.95 | 1.19 | 1.16 |
+| openmp-4 | 3.75 | 1.32 | 1.28 |
+| openmp-6 | 5.46 | 1.37 | 1.32 |
+| openmp-12 | 6.05 | 1.38 | 1.31 |
+| mpi-2 (local) | 1.91 | 1.19 | 1.09 |
+| mpi-4 (local) | 3.72 | 1.32 | 1.18 |
+| mpi-docker-2 | 1.85 | 1.18 | 0.93 |
+| mpi-docker-4 | 3.60 | 1.31 | 0.99 |
+
+El modelo de Amdahl predice razonablemente bien a pthreads/OpenMP (medido
+dentro de ~0.03-0.05x del predicho). Para MPI —sobre todo MPI en Docker—
+el medido queda más por debajo del predicho (p. ej. mpi-docker-4: 0.99x
+medido vs 1.31x predicho), porque el modelo de Amdahl de esta tabla no
+incluye el costo de comunicación por separado (solo usa el speedup de
+filtrado); en MPI ese costo adicional sí se paga dentro del `total_real_s`
+medido. Ningún caso supera el límite teórico de 1.496x.
 
 ## 5. Carga del sistema al momento de medir
 
@@ -301,8 +360,17 @@ results/visual/
 ├── fruit_original.png / fruit_blur.png / fruit_laplace.png / fruit_sharpen.png / fruit_sobel.png
 ├── fruit_comparacion.png      (montaje de las 5 anteriores, lado a lado)
 ├── sulfur_original.png / sulfur_blur.png / sulfur_laplace.png / sulfur_sharpen.png / sulfur_sobel.png
-└── sulfur_comparacion.png     (montaje de las 5 anteriores, lado a lado)
+├── sulfur_comparacion.png     (montaje de las 5 anteriores, lado a lado)
+├── fruit_zoom_original.png / fruit_zoom_blur.png / fruit_zoom_sharpen.png
+│                             (recorte 160x160 de la papaya de fruit.ppm, con zoom 3x
+│                              -filtro "point", sin interpolar, para no disimular el blur-)
+└── fruit_zoom_comparacion.png (montaje de los 3 anteriores, lado a lado)
 ```
+
+El recorte con zoom (sección añadida en la Fase 7) hace visible lo que en
+la imagen completa se nota poco: el blur suaviza claramente los bordes de
+las semillas de la papaya, y el sharpen realza el contraste de esos mismos
+bordes frente al original.
 
 ## 7. Archivos nuevos/modificados de esta fase
 
@@ -314,15 +382,17 @@ scripts/benchmark.sh                    (extendido: 5 imágenes en pthreads/Open
 scripts/benchmark_mpi_docker.sh         (nuevo: MPI dentro de Docker, damma/sulfur)
 scripts/benchmark_mpi_docker_extra.sh   (nuevo: MPI dentro de Docker, lena/fruit/puj)
 scripts/graficar.py                     (agregación de mpi actualizada al nuevo esquema CSV)
-scripts/graficar_fase6.py               (nuevo: tablas 4a/4b/4c y gráficas 05/06)
+scripts/graficar_fase6.py               (tablas 4a/4b/4c -filtrado y programa- y gráficas 05/06/07)
 results/tiempos.csv                     (regenerado completo, post-fix, sistema en reposo)
 results/tiempos_mpi_docker.csv          (nuevo)
 results/resumen_cpu_real.csv            (nuevo, tabla 4a)
 results/resumen_total.csv               (nuevo, tabla 4b)
-results/resumen_amdahl.csv              (nuevo, tabla 4c)
+results/resumen_amdahl.csv              (nuevo, tabla 4c.1, solo filtrado)
+results/resumen_amdahl_programa.csv     (nuevo, tabla 4c.2, programa completo)
 results/graficas/05_speedup_vs_pixeles.png     (nuevo)
 results/graficas/06_speedup_filtrado_vs_total.png (nuevo)
-results/visual/                         (nuevo)
+results/graficas/07_amdahl_predicho_vs_medido.png (nuevo)
+results/visual/                         (nuevo, incluye recortes con zoom)
 ```
 
 ## 8. Pendientes / dudas

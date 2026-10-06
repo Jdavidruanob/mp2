@@ -145,8 +145,58 @@ def main():
         })
     amdahl = pd.DataFrame(amdahl_filas)
     amdahl.to_csv(RESULTS_DIR / "resumen_amdahl.csv", index=False)
-    print("\n=== (4c) Fracción secuencial medida y speedup máximo teórico (Amdahl) ===")
+    print("\n=== (4c) Fracción secuencial medida y speedup máximo teórico (SOLO el kernel de filtrado) ===")
     print(amdahl.to_string(index=False))
+
+    # --- (4c, corregido) Amdahl sobre el PROGRAMA COMPLETO ---
+    # p = fracción paralelizable del programa secuencial = filtrado/total
+    # (lectura+escritura[+comunicación] son la parte que esta implementación
+    # no paraleliza). speedup_max_programa = 1/(1-p) es el límite de Amdahl
+    # cuando n->infinito, aplicado a TODO el programa, no solo al filtrado.
+    p_programa = base_filtrado / base_total
+    speedup_max_programa = 1 / (1 - p_programa)
+    print(f"\n=== Amdahl sobre el programa completo ===")
+    print(f"p (fracción paralelizable, filtrado/total secuencial) = {p_programa:.4f}")
+    print(f"speedup máximo teórico del PROGRAMA (n->inf) = 1/(1-p) = {speedup_max_programa:.4f}")
+
+    configs_programa = [("pthreads", 4), ("openmp", 2), ("openmp", 4), ("openmp", 6), ("openmp", 12),
+                        ("mpi", 2), ("mpi", 4), ("mpi-docker", 2), ("mpi-docker", 4)]
+    filas_prog = []
+    for prog, n in configs_programa:
+        fila = total_tbl[(total_tbl["programa"] == prog) & (total_tbl["hilos_o_nodos"] == n)]
+        if fila.empty:
+            continue
+        s_filtrado = fila["speedup_filtrado"].iloc[0]
+        s_total_medido = fila["speedup_total"].iloc[0]
+        # Amdahl a nivel de programa, usando el speedup de filtrado REALMENTE
+        # medido a ese n (no el ideal n) como estimador de la parte paralela:
+        s_total_predicho = 1 / ((1 - p_programa) + p_programa / s_filtrado)
+        filas_prog.append({
+            "version": fila["version"].iloc[0], "programa": prog, "n": n,
+            "speedup_filtrado_medido": s_filtrado,
+            "speedup_total_predicho_amdahl": s_total_predicho,
+            "speedup_total_medido": s_total_medido,
+        })
+    amdahl_programa = pd.DataFrame(filas_prog)
+    amdahl_programa.to_csv(RESULTS_DIR / "resumen_amdahl_programa.csv", index=False)
+    print(amdahl_programa.to_string(index=False))
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    x = np.arange(len(amdahl_programa))
+    w = 0.35
+    ax.bar(x - w / 2, amdahl_programa["speedup_total_predicho_amdahl"], w, label="predicho por Amdahl (programa completo)")
+    ax.bar(x + w / 2, amdahl_programa["speedup_total_medido"], w, label="medido")
+    ax.axhline(speedup_max_programa, linestyle="--", color="gray",
+               label=f"límite de Amdahl, n→∞ ({speedup_max_programa:.2f}x)")
+    ax.set_xticks(x)
+    ax.set_xticklabels(amdahl_programa["version"], rotation=45, ha="right")
+    ax.set_ylabel("Speedup total del programa")
+    ax.set_title(f"Speedup total: predicho por Amdahl vs. medido\n"
+                 f"(p={p_programa:.4f} = filtrado/total del secuencial; damma+sulfur, pgm+ppm)")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(DIR_GRAFICAS / "07_amdahl_predicho_vs_medido.png", dpi=150)
+    plt.close(fig)
 
     # --- Gráfica: speedup del filtrado vs número de píxeles (tamaño) ---
     tam = ejecuciones[ejecuciones["imagen"].isin(IMAGENES_PIXELES.keys())].copy()
