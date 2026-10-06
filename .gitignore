@@ -1,0 +1,25 @@
+# Ejecutables del proyecto (diseños 1-4)
+processor
+filterer
+th_filterer
+omp_filterer
+mpi_filterer
+
+# Objetos y binarios genéricos de C++
+*.o
+*.obj
+*.out
+*.exe
+
+# Salidas generadas por los filtros (no se versionan, se regeneran)
+output/
+
+# Valgrind
+vgcore.*
+*.vgdump
+
+# Editores / SO
+*.swp
+*.swo
+.vscode/
+.DS_Store
