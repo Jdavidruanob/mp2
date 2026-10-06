@@ -10,6 +10,7 @@ public:
 
     const char *numeroMagico() const override;
     const char *nombreFormato() const override;
+    Imagen *crearVacia(int ancho, int alto, int valorMax) const override;
 };
 
 #endif

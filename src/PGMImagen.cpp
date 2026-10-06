@@ -5,3 +5,7 @@ PGMImagen::PGMImagen(int ancho, int alto, int valorMax)
 
 const char *PGMImagen::numeroMagico() const { return "P2"; }
 const char *PGMImagen::nombreFormato() const { return "PGM"; }
+
+Imagen *PGMImagen::crearVacia(int ancho, int alto, int valorMax) const {
+    return new PGMImagen(ancho, alto, valorMax);
+}

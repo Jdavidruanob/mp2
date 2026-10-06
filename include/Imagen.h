@@ -41,6 +41,13 @@ public:
     // Identifican el formato concreto; las usa ImagenIO al escribir.
     virtual const char *numeroMagico() const = 0;
     virtual const char *nombreFormato() const = 0;
+
+    // Patrón "prototipo": crea una imagen nueva del mismo tipo concreto
+    // (PGM o PPM) con las dimensiones y valor máximo dados, píxeles sin
+    // inicializar. Permite que código genérico (p. ej. los filtros) cree
+    // la imagen de salida correcta sin preguntar getCanales() ni conocer
+    // las subclases concretas.
+    virtual Imagen *crearVacia(int ancho, int alto, int valorMax) const = 0;
 };
 
 #endif
